@@ -63,43 +63,51 @@ local function isSoulgem(item)
 	end
 end
 
-local function explodeTimer()
-	local function calcExplodeChance(soul)
-		if soul <= 50 then
-			return 0
-		elseif soul >= 1500 then
-			return 50
-		else
-			local chance = (-0.0000238 * soul ^ 2 + 0.0713 * soul - 3.51) / 2
-			return chance
-		end
+local function Calc_Explode_Chance(soul)
+	if soul <= 50 then
+		return 0
+	elseif soul >= 1500 then
+		return 50
+	else
+		local chance = (-0.0000238 * soul ^ 2 + 0.0713 * soul - 3.51) / 2
+		return chance
 	end
-	if not config.soulgemsExplode then
-		return
-	end
-	if tes3.mobilePlayer.sleeping then
+end
+
+local function Under_Particular_Situation()
+	return not config.soulgemsExplode or tes3.mobilePlayer.sleeping
+end
+
+local function Is_A_Filled_Soul_Gem(item, itemData)
+	return soulgems[item.id:lower()] and itemData and itemData.soul
+end
+
+local function Explode(item, itemData, coefficient)
+	tes3.cast({
+		reference = tes3.player,
+		target = tes3.player,
+		spell = "force bolt",
+		instant = true,
+		bypassResistances = true,
+	})
+	tes3.mobilePlayer:applyDamage({ damage = coefficient * 2, resistAttribute = tes3.effectAttribute.resistMagic })
+	tes3.removeItem({ reference = tes3.player, item = item, itemData = itemData })
+	tes3.messageBox(string.format("%s exploded!", item.name .. " (" .. itemData.soul.name .. ")"))
+end
+
+-- Unstable Soul Gems
+-- JosephMcKean
+
+local function Filled_Soul_Gems_Are_Very_Unstable()
+	if Under_Particular_Situation() then
 		return
 	end
 	for item, _, itemData in iterItems(tes3.player) do
-		local tier, _ = isSoulgem(item)
-		if tier then -- is soulgem
-			if itemData and itemData.soul then
-				local coefficient = calcExplodeChance(itemData.soul.soul)
-				local rolled = math.random(100)
-				if rolled < coefficient then
-					tes3.cast({
-						reference = tes3.player,
-						target = tes3.player,
-						spell = "force bolt",
-						instant = true,
-						bypassResistances = true,
-					})
-					tes3.mobilePlayer:applyDamage({ damage = coefficient * 2, resistAttribute = tes3.effectAttribute.resistMagic })
-					tes3.removeItem({ reference = tes3.player, item = item, itemData = itemData })
-					tes3.messageBox(string.format("%s exploded!", item.name .. " (" .. itemData.soul.name .. ")"))
-					log:debug("Soul value: %s, coefficient: %s, rolled: %s", itemData.soul.soul, coefficient, rolled)
-					return
-				end
+		if Is_A_Filled_Soul_Gem(item, itemData) then
+			local coefficient = Calc_Explode_Chance(itemData.soul.soul)
+			if math.random(100) < coefficient then
+				Explode(item, itemData, coefficient)
+				return
 			end
 		end
 	end
@@ -204,7 +212,7 @@ event.register("loaded", function()
 		duration = 1,
 		callback = function()
 			if config.soulgemsExplode then
-				explodeTimer()
+				Filled_Soul_Gems_Are_Very_Unstable()
 			end
 		end,
 	})
