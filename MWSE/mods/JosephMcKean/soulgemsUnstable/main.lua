@@ -5,9 +5,9 @@ local description = "2023 Winter Modjam Entry\n\n" .. "Two features of this mod:
                     "- A widget next to the sneak icon to show the lowest tier non-filled soul gem in your inventory when you have soultrap spell or soultrap enchanted weapon equipped."
 
 local configPath = mod
-local defaultConfig = { soulgemsExplode = true, soulgemIcon = true }
+local defaultConfig = { soulgemsExplode = true, soulgemIcon = true, debug = false }
 local config = mwse.loadConfig(configPath, defaultConfig)
-local log = require("logging.logger").new({ name = mod, logLevel = "DEBUG" })
+local log = require("logging.logger").new({ name = mod, logLevel = "INFO" })
 
 local soulgemFrame
 local soulgemImage
@@ -198,6 +198,15 @@ end
 event.register("uiActivated", createSoulgemIcon, { filter = "MenuMulti" })
 
 event.register("loaded", function()
+	for id, v in pairs(soulgems) do
+		local soulgem = tes3.getObject(id)
+		if soulgem then
+			v.path = "icons\\" .. soulgem.icon
+			log:debug("%s icon path: ", v.path)
+		else
+			log:debug("%s not found", id)
+		end
+	end
 	timer.start({
 		iterations = -1,
 		duration = 0.5,
@@ -217,16 +226,6 @@ event.register("loaded", function()
 		end,
 	})
 end)
-event.register("initialize", function()
-	for id, v in pairs(soulgems) do
-		local soulgem = tes3.getObject(id)
-		if soulgem then
-			v.path = soulgem.icon
-		else
-			log:info("%s not found", id)
-		end
-	end
-end)
 
 local function registerModConfig()
 	local template = mwse.mcm.createTemplate({ name = mod })
@@ -241,6 +240,17 @@ local function registerModConfig()
 	category:createYesNoButton({
 		label = "Soul Gem indicator",
 		variable = mwse.mcm.createTableVariable({ id = "soulgemIcon", table = config }),
+	})
+	category:createYesNoButton({
+		label = "Set Log Level to DEBUG",
+		variable = mwse.mcm.createTableVariable({ id = "debug", table = config }),
+		callback = function(self)
+			if self.variable.value then
+				log:setLogLevel("DEBUG")
+			else
+				log:setLogLevel("INFO")
+			end
+		end,
 	})
 end
 event.register("modConfigReady", registerModConfig)
